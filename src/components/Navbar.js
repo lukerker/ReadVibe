@@ -7,11 +7,20 @@ const Navbar = ({ user }) => {
     const location = useLocation();
     const [displayName, setDisplayName] = useState('');
     const [avatarUrl, setAvatarUrl] = useState('');
-    const [showMenu, setShowMenu] = useState(false);
+    const [showMenu, setShowMenu] = useState(false);       // desktop dropdown
+    const [showMobileNav, setShowMobileNav] = useState(false); // mobile hamburger
     const [pendingRequests, setPendingRequests] = useState(0);
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 700);
     const menuRef = useRef(null);
 
-    // 載入使用者暱稱和頭貼
+    // Track viewport width
+    useEffect(() => {
+        const onResize = () => setIsMobile(window.innerWidth < 700);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
+
+    // Load display name + avatar
     useEffect(() => {
         if (!user) return;
         const unsub = db.collection('users').doc(user.uid).onSnapshot(doc => {
@@ -23,7 +32,7 @@ const Navbar = ({ user }) => {
         return () => unsub();
     }, [user]);
 
-    // 載入待處理借閱請求數
+    // Pending lend requests badge
     useEffect(() => {
         if (!user) return;
         const unsub = db.collection('lendRequests')
@@ -33,7 +42,7 @@ const Navbar = ({ user }) => {
         return () => unsub();
     }, [user]);
 
-    // 點選選單外部關閉
+    // Close desktop dropdown when clicking outside
     useEffect(() => {
         const handler = (e) => {
             if (menuRef.current && !menuRef.current.contains(e.target)) {
@@ -43,6 +52,9 @@ const Navbar = ({ user }) => {
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
     }, []);
+
+    // Close mobile nav on route change
+    useEffect(() => { setShowMobileNav(false); }, [location]);
 
     const handleLogout = async () => {
         await signOut(auth);
@@ -63,80 +75,111 @@ const Navbar = ({ user }) => {
 
     const initial = (displayName || user?.email || '?')[0].toUpperCase();
 
+    const navLinks = [
+        { to: '/', label: '動態牆' },
+        { to: '/search', label: '找新書' },
+        { to: '/friends', label: '好友' },
+        { to: `/profile/${user?.uid}`, label: '我的書架', activePath: '/profile' },
+        { to: '/wishlist', label: '願望清單', badge: pendingRequests },
+    ];
+
     return (
-        <nav style={navStyle}>
-            <div style={logoStyle}>
-                <Link to="/" style={{ textDecoration: 'none', color: '#1a1a1a', fontWeight: '800' }}>
-                    📚 ReadVibe
-                </Link>
-            </div>
+        <>
+            <nav style={navStyle}>
+                {/* Logo */}
+                <div style={logoStyle}>
+                    <Link to="/" style={{ textDecoration: 'none', color: '#1a1a1a', fontWeight: '800' }}>
+                        📚 ReadVibe
+                    </Link>
+                </div>
 
-            <ul style={linkListStyle}>
-                <li><Link to="/" style={linkStyle('/')}>動態牆</Link></li>
-                <li><Link to="/search" style={linkStyle('/search')}>找新書</Link></li>
-                <li><Link to="/friends" style={linkStyle('/friends')}>好友</Link></li>
-                <li><Link to={`/profile/${user?.uid}`} style={linkStyle('/profile')}>我的書架</Link></li>
-                <li style={{ position: 'relative' }}>
-                    <Link to="/wishlist" style={linkStyle('/wishlist')}>願望清單</Link>
-                    {pendingRequests > 0 && (
-                        <span style={{
-                            position: 'absolute', top: '-6px', right: '-10px',
-                            backgroundColor: '#e53935', color: '#fff',
-                            fontSize: '0.6rem', fontWeight: '800',
-                            width: '16px', height: '16px', borderRadius: '50%',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>{pendingRequests}</span>
-                    )}
-                </li>
-            </ul>
-
-            {/* 右側：暱稱 + 齒輪選單 */}
-            <div style={rightAreaStyle} ref={menuRef}>
-                <span style={nameStyle}>{displayName || user?.email?.split('@')[0] || '使用者'}</span>
-                <button
-                    onClick={() => setShowMenu(v => !v)}
-                    style={gearBtnStyle}
-                    title="設定"
-                >
-                    {/* 頭貼 or 首字母 */}
-                    {avatarUrl
-                        ? <img src={avatarUrl} alt="avatar" style={avatarImgStyle} />
-                        : <div style={avatarInitialStyle}>{initial}</div>
-                    }
-                    <span style={{ fontSize: '0.7rem', color: '#aaa', marginTop: '0px' }}>▼</span>
-                </button>
-
-                {showMenu && (
-                    <div style={dropdownStyle}>
-                        <Link
-                            to="/settings"
-                            style={dropdownItemStyle}
-                            onClick={() => setShowMenu(false)}
-                        >
-                            ⚙️ 個人設定
-                        </Link>
-                        <div style={dropdownDividerStyle} />
-                        <button onClick={handleLogout} style={dropdownLogoutStyle}>
-                            🚪 登出
-                        </button>
-                    </div>
+                {/* Desktop nav links */}
+                {!isMobile && (
+                    <ul style={linkListStyle}>
+                        {navLinks.map(l => (
+                            <li key={l.to} style={{ position: 'relative' }}>
+                                <Link to={l.to} style={linkStyle(l.activePath || l.to)}>{l.label}</Link>
+                                {l.badge > 0 && <span style={badgeDotStyle}>{l.badge}</span>}
+                            </li>
+                        ))}
+                    </ul>
                 )}
-            </div>
-        </nav>
+
+                {/* Right side: name + avatar dropdown + hamburger */}
+                <div style={rightAreaStyle} ref={menuRef}>
+                    {!isMobile && (
+                        <span style={nameStyle}>{displayName || user?.email?.split('@')[0] || '使用者'}</span>
+                    )}
+                    <button onClick={() => setShowMenu(v => !v)} style={gearBtnStyle} title="設定">
+                        {avatarUrl
+                            ? <img src={avatarUrl} alt="avatar" style={avatarImgStyle} />
+                            : <div style={avatarInitialStyle}>{initial}</div>
+                        }
+                        {!isMobile && <span style={{ fontSize: '0.7rem', color: '#aaa' }}>▼</span>}
+                    </button>
+
+                    {showMenu && (
+                        <div style={dropdownStyle}>
+                            <Link to="/settings" style={dropdownItemStyle} onClick={() => setShowMenu(false)}>
+                                ⚙️ 個人設定
+                            </Link>
+                            <div style={dropdownDividerStyle} />
+                            <button onClick={handleLogout} style={dropdownLogoutStyle}>
+                                🚪 登出
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Hamburger button (mobile only) */}
+                    {isMobile && (
+                        <button
+                            onClick={() => setShowMobileNav(v => !v)}
+                            style={hamburgerBtnStyle}
+                            aria-label="選單"
+                        >
+                            {showMobileNav ? '✕' : '☰'}
+                            {pendingRequests > 0 && !showMobileNav && (
+                                <span style={hamburgerBadgeStyle}>{pendingRequests}</span>
+                            )}
+                        </button>
+                    )}
+                </div>
+            </nav>
+
+            {/* Mobile slide-down nav panel */}
+            {isMobile && showMobileNav && (
+                <div style={mobileNavPanelStyle}>
+                    {navLinks.map(l => (
+                        <Link
+                            key={l.to}
+                            to={l.to}
+                            style={mobileLinkStyle(l.activePath || l.to, isActive)}
+                        >
+                            <span>{l.label}</span>
+                            {l.badge > 0 && <span style={mobileBadgeStyle}>{l.badge}</span>}
+                        </Link>
+                    ))}
+                    <div style={{ height: '1px', backgroundColor: '#f0f0f0', margin: '4px 0' }} />
+                    <Link to="/settings" style={mobileLinkStyle('/settings', isActive)}>⚙️ 個人設定</Link>
+                    <button onClick={handleLogout} style={mobileLogoutStyle}>🚪 登出</button>
+                </div>
+            )}
+        </>
     );
 };
 
+// ── Styles ────────────────────────────────────────────────────────
 const navStyle = {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '0.85rem 2rem', backgroundColor: '#fff',
+    padding: '0.85rem 1.5rem', backgroundColor: '#fff',
     borderBottom: '1px solid #f0f0f0', position: 'sticky', top: 0, zIndex: 1000,
     boxShadow: '0 1px 12px rgba(0,0,0,0.05)'
 };
-const logoStyle = { fontSize: '1.1rem' };
+const logoStyle = { fontSize: '1.1rem', flexShrink: 0 };
 const linkListStyle = {
-    display: 'flex', listStyle: 'none', gap: '28px', margin: 0, padding: 0, alignItems: 'center'
+    display: 'flex', listStyle: 'none', gap: '24px', margin: 0, padding: 0, alignItems: 'center'
 };
-const rightAreaStyle = { display: 'flex', alignItems: 'center', gap: '10px', position: 'relative' };
+const rightAreaStyle = { display: 'flex', alignItems: 'center', gap: '8px', position: 'relative', flexShrink: 0 };
 const nameStyle = { fontSize: '0.88rem', fontWeight: '600', color: '#444' };
 const gearBtnStyle = {
     display: 'flex', alignItems: 'center', gap: '6px',
@@ -152,6 +195,13 @@ const avatarInitialStyle = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontWeight: '800', fontSize: '0.9rem'
 };
+const badgeDotStyle = {
+    position: 'absolute', top: '-6px', right: '-10px',
+    backgroundColor: '#e53935', color: '#fff',
+    fontSize: '0.6rem', fontWeight: '800',
+    width: '16px', height: '16px', borderRadius: '50%',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+};
 const dropdownStyle = {
     position: 'absolute', top: 'calc(100% + 10px)', right: 0,
     backgroundColor: '#fff', borderRadius: '14px',
@@ -162,7 +212,6 @@ const dropdownItemStyle = {
     display: 'block', padding: '14px 18px',
     color: '#333', textDecoration: 'none',
     fontSize: '0.9rem', fontWeight: '600',
-    transition: 'background 0.1s'
 };
 const dropdownDividerStyle = { height: '1px', backgroundColor: '#f5f5f5' };
 const dropdownLogoutStyle = {
@@ -170,6 +219,48 @@ const dropdownLogoutStyle = {
     color: '#e53935', textDecoration: 'none',
     fontSize: '0.9rem', fontWeight: '600', background: 'none', border: 'none',
     textAlign: 'left', cursor: 'pointer'
+};
+
+// Mobile hamburger
+const hamburgerBtnStyle = {
+    background: 'none', border: 'none', fontSize: '1.3rem',
+    cursor: 'pointer', color: '#1a1a1a', padding: '4px 8px',
+    position: 'relative', lineHeight: 1
+};
+const hamburgerBadgeStyle = {
+    position: 'absolute', top: '0px', right: '0px',
+    backgroundColor: '#e53935', color: '#fff',
+    fontSize: '0.55rem', fontWeight: '800',
+    width: '14px', height: '14px', borderRadius: '50%',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+};
+
+// Mobile slide-down panel
+const mobileNavPanelStyle = {
+    position: 'sticky', top: '58px', zIndex: 999,
+    backgroundColor: '#fff', borderBottom: '1px solid #f0f0f0',
+    boxShadow: '0 6px 20px rgba(0,0,0,0.08)',
+    display: 'flex', flexDirection: 'column',
+};
+const mobileLinkStyle = (path, isActive) => ({
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '14px 24px',
+    textDecoration: 'none',
+    color: isActive(path) ? '#1a1a1a' : '#555',
+    fontWeight: isActive(path) ? '700' : '500',
+    fontSize: '0.95rem',
+    backgroundColor: isActive(path) ? '#f9f9f9' : 'transparent',
+    borderLeft: isActive(path) ? '3px solid #1a1a1a' : '3px solid transparent',
+});
+const mobileBadgeStyle = {
+    backgroundColor: '#e53935', color: '#fff',
+    fontSize: '0.65rem', fontWeight: '800',
+    padding: '2px 7px', borderRadius: '999px',
+};
+const mobileLogoutStyle = {
+    display: 'block', width: '100%', padding: '14px 24px',
+    color: '#e53935', fontSize: '0.95rem', fontWeight: '600',
+    background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer',
 };
 
 export default Navbar;
