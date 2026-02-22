@@ -1,0 +1,12 @@
+{
+  "files": {
+    "main.css": "/ReadVibe/static/css/main.4efb37a3.css",
+    "main.js": "/ReadVibe/static/js/main.9d010e8a.js",
+    "static/js/206.7b93a8ee.chunk.js": "/ReadVibe/static/js/206.7b93a8ee.chunk.js",
+    "index.html": "/ReadVibe/index.html"
+  },
+  "entrypoints": [
+    "static/css/main.4efb37a3.css",
+    "static/js/main.9d010e8a.js"
+  ]
+}
